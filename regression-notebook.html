@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regression Notebook — CSV Scatterplot & Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper: #eef0e2;
+    --paper-2: #e6e9d8;
+    --grid: #c9d3c2;
+    --ink: #262a1f;
+    --muted: #6b7061;
+    --red: #b7332a;
+    --navy: #2e4c6d;
+    --navy-soft: rgba(46,76,109,0.55);
+    --white: #fbfaf4;
+    --radius: 3px;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 26px 26px;
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 28px 18px 80px;
+  }
+  .wrap{ max-width: 1180px; margin: 0 auto; }
+
+  header.masthead{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    flex-wrap: wrap; gap: 12px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 26px;
+  }
+  header.masthead .title-block h1{
+    font-family: 'Newsreader', serif;
+    font-weight: 700;
+    font-size: clamp(28px, 4vw, 42px);
+    margin: 0 0 2px 0;
+    letter-spacing: -0.01em;
+  }
+  header.masthead .title-block p{
+    margin: 0; color: var(--muted); font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  header.masthead .datestamp{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--muted);
+    text-align: right;
+    border: 1px solid var(--ink);
+    padding: 6px 10px;
+    transform: rotate(-1deg);
+    background: var(--white);
+  }
+
+  .panel{
+    background: var(--white);
+    border: 1px solid rgba(38,42,31,0.18);
+    border-left: 4px solid var(--red);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 0 rgba(38,42,31,0.06), 0 8px 18px -14px rgba(38,42,31,0.35);
+  }
+  .panel h2{
+    font-family: 'Newsreader', serif;
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 14px 0;
+    display:flex; align-items:center; gap: 10px;
+  }
+  .panel h2 .num{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: 50%;
+    width: 22px; height: 22px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+
+  /* Upload area */
+  #dropzone{
+    border: 2px dashed var(--navy-soft);
+    border-radius: var(--radius);
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  #dropzone:hover, #dropzone.dragover{
+    background: rgba(46,76,109,0.06);
+    border-color: var(--navy);
+  }
+  #dropzone p{ margin: 4px 0; }
+  #dropzone .big{ font-family: 'Newsreader', serif; font-size: 18px; }
+  #dropzone .small{ font-size: 13px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  #fileInput{ display:none; }
+
+  .row-actions{
+    display:flex; gap: 10px; justify-content:center; margin-top: 14px; flex-wrap: wrap;
+  }
+
+  button{
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    border: 1.5px solid var(--ink);
+    background: var(--white);
+    color: var(--ink);
+    padding: 9px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform .08s ease, background .15s ease, color .15s ease;
+  }
+  button:hover{ background: var(--ink); color: var(--white); }
+  button:active{ transform: translateY(1px); }
+  button.primary{ background: var(--navy); border-color: var(--navy); color: var(--white); }
+  button.primary:hover{ background: #22384f; }
+  button.primary:disabled{ opacity: .4; cursor: not-allowed; background: var(--navy); }
+  button.ghost{ background: transparent; }
+
+  .filemeta{
+    display:none; margin-top: 14px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--muted);
+  }
+
+  table{ border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td{
+    border: 1px solid rgba(38,42,31,0.18);
+    padding: 6px 10px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  th{ background: var(--paper-2); font-weight: 600; }
+  .table-scroll{ overflow-x: auto; max-height: 260px; overflow-y: auto; border: 1px solid rgba(38,42,31,0.12); }
+  .col-badge{
+    display:inline-block; font-size: 10px; font-family:'JetBrains Mono',monospace;
+    padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle;
+  }
+  .badge-num{ background: rgba(46,76,109,0.14); color: var(--navy); }
+  .badge-cat{ background: rgba(183,51,42,0.12); color: var(--red); }
+
+  /* Variable selection */
+  .var-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 720px){ .var-grid{ grid-template-columns: 1fr; } }
+  .field-label{
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted); margin-bottom: 8px; display:block;
+  }
+  select{
+    width: 100%; padding: 9px 10px; font-family: 'Inter', sans-serif; font-size: 14px;
+    border: 1.5px solid var(--ink); border-radius: var(--radius); background: var(--white); color: var(--ink);
+  }
+  .checklist{
+    border: 1.5px solid var(--ink); border-radius: var(--radius); padding: 8px; max-height: 180px; overflow-y:auto; background: var(--white);
+  }
+  .checklist label{
+    display:flex; align-items:center; gap: 8px; padding: 5px 6px; font-size: 14px; border-radius: 2px; cursor:pointer;
+  }
+  .checklist label:hover{ background: var(--paper-2); }
+  .checklist input{ accent-color: var(--navy); width: 15px; height: 15px; }
+  .hint{ font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .warn{ font-size: 13px; color: var(--red); margin-top: 8px; font-weight: 600; display:none; }
+
+  /* Results */
+  .results-top{ display:grid; grid-template-columns: 1.3fr 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px){ .results-top{ grid-template-columns: 1fr; } }
+
+  .plot-controls{ display:flex; gap: 10px; align-items:center; margin-bottom: 10px; flex-wrap: wrap; }
+  .plot-controls label{ font-family:'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); }
+  .plot-controls select{ width: auto; padding: 6px 8px; font-size: 13px; }
+
+  canvas.plot{ width: 100%; display:block; background: transparent; }
+
+  .stamp{
+    width: 168px; height: 168px;
+    border: 3px solid var(--red);
+    border-radius: 48% 52% 53% 47% / 51% 46% 54% 49%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transform: rotate(-4deg);
+    color: var(--red);
+    margin: 6px auto 14px;
+    font-family: 'JetBrains Mono', monospace;
+    text-align:center;
+    background: rgba(183,51,42,0.03);
+  }
+  .stamp .label{ font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; opacity: .85; }
+  .stamp .value{ font-family: 'Newsreader', serif; font-size: 34px; font-weight: 700; }
+  .stamp .sub{ font-size: 11px; margin-top: 4px; opacity: .8;}
+
+  .stat-mini-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; font-family:'JetBrains Mono', monospace; font-size: 13px; margin-top: 6px;}
+  .stat-mini-grid div.k{ color: var(--muted); }
+  .stat-mini-grid div.v{ text-align:right; font-weight: 600; }
+
+  .eqn-box{
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--paper-2);
+    border: 1px dashed var(--navy-soft);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .eqn-box .lbl{ color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom: 4px;}
+
+  .coef-table th, .coef-table td{ text-align: right; }
+  .coef-table th:first-child, .coef-table td:first-child{ text-align: left; }
+  .sig{ color: var(--red); font-weight: 700; }
+
+  .small-multiples{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 14px; margin-top: 14px; }
+  .sm-item{ border: 1px solid rgba(38,42,31,0.15); background: var(--white); padding: 10px; border-radius: var(--radius); }
+  .sm-item .sm-title{ font-family:'JetBrains Mono',monospace; font-size: 12px; color: var(--navy); margin-bottom: 4px; font-weight:600; }
+
+  footer{
+    text-align:center; color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 12px; margin-top: 34px;
+  }
+
+  #resultsSection, #dataSection{ display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="title-block">
+      <h1>Regression Notebook</h1>
+      <p>upload &middot; plot &middot; fit &middot; interpret</p>
+    </div>
+    <div class="datestamp">FIG. 1 — scatter &amp; least-squares fit</div>
+  </header>
+
+  <!-- STEP 1: UPLOAD -->
+  <section class="panel">
+    <h2><span class="num">1</span> Load your data</h2>
+    <div id="dropzone">
+      <p class="big">Drop a CSV file here, or click to choose one</p>
+      <p class="small">first row = column headers &middot; numeric columns are detected automatically</p>
+      <input type="file" id="fileInput" accept=".csv,text/csv">
+    </div>
+    <div class="row-actions">
+      <button class="ghost" id="sampleBtn">Use sample data (study hours vs. exam score, n=30)</button>
+    </div>
+    <div class="filemeta" id="fileMeta"></div>
+  </section>
+
+  <!-- STEP 2: DATA PREVIEW + VARIABLES -->
+  <section class="panel" id="dataSection">
+    <h2><span class="num">2</span> Preview &amp; choose variables</h2>
+    <div class="table-scroll" style="margin-bottom:18px;">
+      <table id="previewTable"></table>
+    </div>
+
+    <div class="var-grid">
+      <div>
+        <span class="field-label">Response variable (Y)</span>
+        <select id="responseSelect"></select>
+        <p class="hint">The outcome you want to predict or explain.</p>
+      </div>
+      <div>
+        <span class="field-label">Explanatory variable(s) (X)</span>
+        <div class="checklist" id="explanatoryChecklist"></div>
+        <p class="hint">Choose one variable for a simple regression, or several for a multiple regression.</p>
+      </div>
+    </div>
+    <p class="warn" id="varWarning">Please select a response variable and at least one explanatory variable (and make sure they aren't the same column).</p>
+    <div class="row-actions" style="justify-content:flex-start; margin-top:18px;">
+      <button class="primary" id="runBtn">Run analysis →</button>
+    </div>
+  </section>
+
+  <!-- STEP 3: RESULTS -->
+  <section id="resultsSection">
+    <section class="panel">
+      <h2><span class="num">3</span> Scatterplot</h2>
+      <div class="plot-controls" id="plotControlsWrap" style="display:none;">
+        <label for="focusSelect">Plotting on X axis:</label>
+        <select id="focusSelect"></select>
+      </div>
+      <canvas class="plot" id="mainCanvas" height="420"></canvas>
+      <div class="small-multiples" id="smallMultiples"></div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="num">4</span> Statistical summary</h2>
+      <div class="results-top">
+        <div>
+          <div class="eqn-box" id="eqnBox"></div>
+          <div class="table-scroll" style="max-height:none;">
+            <table class="coef-table" id="coefTable"></table>
+          </div>
+          <p class="hint" id="sigNote" style="margin-top:10px;"></p>
+        </div>
+        <div>
+          <div class="stamp" id="stamp">
+            <div class="label">R-squared</div>
+            <div class="value" id="stampValue">—</div>
+            <div class="sub" id="stampSub"></div>
+          </div>
+          <div class="stat-mini-grid" id="miniStats"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="num">5</span> Residual plot</h2>
+      <p class="hint" style="margin-top:-6px;">Residuals (actual − predicted) vs. fitted values. Scatter should look random with no pattern for a well-fitted linear model.</p>
+      <canvas class="plot" id="residCanvas" height="280"></canvas>
+    </section>
+  </section>
+
+  <footer>Everything runs locally in your browser — no data is uploaded anywhere.</footer>
+</div>
+
+<script>
+(function(){
+
+  /* ---------------------------------------------------------------
+     CSV PARSING
+  --------------------------------------------------------------- */
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for(let i=0;i<text.length;i++){
+      const c = text[i];
+      if(inQuotes){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else {
+        if(c === '"') inQuotes = true;
+        else if(c === ','){ row.push(field); field=''; }
+        else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+        else if(c === '\r'){ /* skip */ }
+        else field += c;
+      }
+    }
+    if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
+    return rows.filter(r => !(r.length===1 && r[0].trim()===''));
+  }
+
+  function isNumeric(v){
+    if(v === undefined || v === null) return false;
+    const s = String(v).trim();
+    if(s === '') return true; // treat blank as missing, not disqualifying
+    return /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(s);
+  }
+
+  /* ---------------------------------------------------------------
+     STATE
+  --------------------------------------------------------------- */
+  const state = {
+    headers: [], rows: [], columnTypes: {}, numericCols: [],
+    result: null, focusVar: null
+  };
+
+  /* ---------------------------------------------------------------
+     FILE LOADING
+  --------------------------------------------------------------- */
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const fileMeta = document.getElementById('fileMeta');
+
+  dropzone.addEventListener('click', ()=>fileInput.click());
+  dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault(); dropzone.classList.remove('dragover');
+    if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  document.getElementById('sampleBtn').addEventListener('click', ()=>{
+    const csv = generateSampleCSV();
+    loadCSVText(csv, 'sample_study_hours.csv (generated)');
+  });
+
+  function handleFile(file){
+    const reader = new FileReader();
+    reader.onload = e => loadCSVText(e.target.result, file.name);
+    reader.readAsText(file);
+  }
+
+  function loadCSVText(text, name){
+    const rows = parseCSV(text);
+    if(rows.length < 2){ alert('Could not find enough rows in this CSV.'); return; }
+    const headers = rows[0].map(h => h.trim());
+    const dataRows = rows.slice(1).map(r => {
+      const obj = {};
+      headers.forEach((h,i) => obj[h] = (r[i] !== undefined ? r[i].trim() : ''));
+      return obj;
+    }).filter(r => headers.some(h => r[h] !== ''));
+
+    const columnTypes = {};
+    headers.forEach(h => {
+      const allNumeric = dataRows.every(r => isNumeric(r[h]));
+      columnTypes[h] = allNumeric ? 'numeric' : 'categorical';
+    });
+
+    state.headers = headers;
+    state.rows = dataRows;
+    state.columnTypes = columnTypes;
+    state.numericCols = headers.filter(h => columnTypes[h] === 'numeric');
+
+    fileMeta.style.display = 'block';
+    fileMeta.textContent = `Loaded "${name}" — ${dataRows.length} rows × ${headers.length} columns (${state.numericCols.length} numeric).`;
+
+    renderPreview();
+    renderVariableSelectors();
+    document.getElementById('dataSection').style.display = 'block';
+    document.getElementById('resultsSection').style.display = 'none';
+    document.getElementById('dataSection').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function generateSampleCSV(){
+    let rows = [['student_id','study_hours','exam_score','sleep_hours']];
+    let seed = 42;
+    function rand(){ seed = (seed*9301+49297)%233280; return seed/233280; }
+    for(let i=1;i<=30;i++){
+      const hours = +(1 + rand()*9).toFixed(1);
+      const sleep = +(4 + rand()*5).toFixed(1);
+      const noise = (rand()-0.5)*12;
+      let score = 42 + hours*5.4 + sleep*1.1 + noise;
+      score = Math.max(35, Math.min(100, Math.round(score)));
+      rows.push([i, hours, score, sleep]);
+    }
+    return rows.map(r=>r.join(',')).join('\n');
+  }
+
+  /* ---------------------------------------------------------------
+     RENDER: PREVIEW + VARIABLE PICKERS
+  --------------------------------------------------------------- */
+  function renderPreview(){
+    const table = document.getElementById('previewTable');
+    const previewRows = state.rows.slice(0,6);
+    let html = '<thead><tr>';
+    state.headers.forEach(h=>{
+      const badge = state.columnTypes[h] === 'numeric'
+        ? '<span class="col-badge badge-num">num</span>'
+        : '<span class="col-badge badge-cat">text</span>';
+      html += `<th>${escapeHtml(h)}${badge}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    previewRows.forEach(r=>{
+      html += '<tr>' + state.headers.map(h=>`<td>${escapeHtml(r[h])}</td>`).join('') + '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function renderVariableSelectors(){
+    const responseSelect = document.getElementById('responseSelect');
+    responseSelect.innerHTML = state.numericCols.map(h=>`<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join('');
+
+    const checklist = document.getElementById('explanatoryChecklist');
+    function buildChecklist(){
+      checklist.innerHTML = state.numericCols
+        .filter(h => h !== responseSelect.value)
+        .map(h => `<label><input type="checkbox" value="${escapeHtml(h)}"> ${escapeHtml(h)}</label>`).join('');
+    }
+    buildChecklist();
+    // pre-check first available explanatory var
+    const firstCb = checklist.querySelector('input');
+    if(firstCb) firstCb.checked = true;
+
+    responseSelect.addEventListener('change', buildChecklist);
+  }
+
+  document.getElementById('runBtn').addEventListener('click', runAnalysis);
+
+  /* ---------------------------------------------------------------
+     LINEAR ALGEBRA
+  --------------------------------------------------------------- */
+  function transpose(A){
+    const rows = A.length, cols = A[0].length;
+    const T = Array.from({length:cols}, ()=>new Array(rows).fill(0));
+    for(let i=0;i<rows;i++) for(let j=0;j<cols;j++) T[j][i] = A[i][j];
+    return T;
+  }
+  function matMul(A,B){
+    const r=A.length, k=A[0].length, c=B[0].length;
+    const R = Array.from({length:r}, ()=>new Array(c).fill(0));
+    for(let i=0;i<r;i++) for(let j=0;j<c;j++){
+      let s=0; for(let m=0;m<k;m++) s += A[i][m]*B[m][j];
+      R[i][j]=s;
+    }
+    return R;
+  }
+  // Gauss-Jordan inversion
+  function invert(M){
+    const n = M.length;
+    const A = M.map(row => row.slice());
+    const I = Array.from({length:n}, (_,i)=> Array.from({length:n},(_,j)=> i===j?1:0));
+    for(let col=0; col<n; col++){
+      let pivotRow = col;
+      let maxVal = Math.abs(A[col][col]);
+      for(let r=col+1;r<n;r++){ if(Math.abs(A[r][col])>maxVal){ maxVal=Math.abs(A[r][col]); pivotRow=r; } }
+      if(maxVal < 1e-12) throw new Error('Matrix is singular — the chosen explanatory variables may be collinear (redundant with each other).');
+      if(pivotRow !== col){
+        [A[col],A[pivotRow]] = [A[pivotRow],A[col]];
+        [I[col],I[pivotRow]] = [I[pivotRow],I[col]];
+      }
+      const pivot = A[col][col];
+      for(let j=0;j<n;j++){ A[col][j]/=pivot; I[col][j]/=pivot; }
+      for(let r=0;r<n;r++){
+        if(r===col) continue;
+        const factor = A[r][col];
+        if(factor === 0) continue;
+        for(let j=0;j<n;j++){ A[r][j] -= factor*A[col][j]; I[r][j] -= factor*I[col][j]; }
+      }
+    }
+    return I;
+  }
+
+  /* ---------------------------------------------------------------
+     DISTRIBUTIONS (for p-values): lgamma, incomplete beta
+  --------------------------------------------------------------- */
+  function lgamma(x){
+    const g = 7;
+    const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,
+      771.32342877765313,-176.61502916214059,12.507343278686905,
+      -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+    if(x < 0.5){
+      return Math.log(Math.PI/Math.sin(Math.PI*x)) - lgamma(1-x);
+    }
+    x -= 1;
+    let a = c[0];
+    const t = x + g + 0.5;
+    for(let i=1;i<g+2;i++) a += c[i]/(x+i);
+    return 0.5*Math.log(2*Math.PI) + (x+0.5)*Math.log(t) - t + Math.log(a);
+  }
+  function betacf(x,a,b){
+    const MAXIT=200, EPS=3e-7, FPMIN=1e-30;
+    let qab=a+b, qap=a+1, qam=a-1;
+    let c=1, d=1-qab*x/qap;
+    if(Math.abs(d)<FPMIN) d=FPMIN;
+    d=1/d; let h=d;
+    for(let m=1;m<=MAXIT;m++){
+      const m2=2*m;
+      let aa = m*(b-m)*x/((qam+m2)*(a+m2));
+      d = 1+aa*d; if(Math.abs(d)<FPMIN) d=FPMIN;
+      c = 1+aa/c; if(Math.abs(c)<FPMIN) c=FPMIN;
+      d=1/d; h *= d*c;
+      aa = -(a+m)*(qab+m)*x/((a+m2)*(qap+m2));
+      d = 1+aa*d; if(Math.abs(d)<FPMIN) d=FPMIN;
+      c = 1+aa/c; if(Math.abs(c)<FPMIN) c=FPMIN;
+      d=1/d; const del = d*c; h*=del;
+      if(Math.abs(del-1) < EPS) break;
+    }
+    return h;
+  }
+  function betai(x,a,b){
+    if(x<=0) return 0;
+    if(x>=1) return 1;
+    const bt = Math.exp(lgamma(a+b)-lgamma(a)-lgamma(b)+a*Math.log(x)+b*Math.log(1-x));
+    if(x < (a+1)/(a+b+2)) return bt*betacf(x,a,b)/a;
+    else return 1 - bt*betacf(1-x,b,a)/b;
+  }
+  function tTwoTailP(t, df){
+    const x = df/(df+t*t);
+    return betai(x, df/2, 0.5);
+  }
+  function fUpperP(f, d1, d2){
+    if(f<=0) return 1;
+    const x = d2/(d2+d1*f);
+    return betai(x, d2/2, d1/2);
+  }
+
+  /* ---------------------------------------------------------------
+     REGRESSION
+  --------------------------------------------------------------- */
+  function runRegression(xCols, yCol, rows){
+    const clean = rows.filter(r => isNumeric(r[yCol]) && r[yCol]!=='' && xCols.every(c => isNumeric(r[c]) && r[c]!==''));
+    const n = clean.length;
+    const p = xCols.length;
+    if(n - p - 1 < 1) throw new Error('Not enough complete data rows for the number of explanatory variables chosen.');
+
+    const X = clean.map(r => [1, ...xCols.map(c => parseFloat(r[c]))]);
+    const y = clean.map(r => [parseFloat(r[yCol])]);
+
+    const Xt = transpose(X);
+    const XtX = matMul(Xt, X);
+    const XtX_inv = invert(XtX);
+    const Xty = matMul(Xt, y);
+    const beta = matMul(XtX_inv, Xty).map(r=>r[0]);
+
+    const preds = X.map(row => row.reduce((s,v,i)=>s+v*beta[i],0));
+    const residuals = y.map((yi,i)=> yi[0]-preds[i]);
+    const meanY = y.reduce((s,v)=>s+v[0],0)/n;
+    const SSE = residuals.reduce((s,r)=>s+r*r,0);
+    const SST = y.reduce((s,v)=>s+(v[0]-meanY)*(v[0]-meanY),0);
+    const R2 = 1 - SSE/SST;
+    const df = n - p - 1;
+    const MSE = SSE/df;
+    const adjR2 = 1 - (1-R2)*(n-1)/df;
+    const seBeta = beta.map((b,i)=> Math.sqrt(MSE * XtX_inv[i][i]));
+    const tStats = beta.map((b,i)=> b/seBeta[i]);
+    const pVals = tStats.map(t => tTwoTailP(t, df));
+    const F = ((SST-SSE)/p) / (SSE/df);
+    const Fp = fUpperP(F, p, df);
+    const residSE = Math.sqrt(MSE);
+
+    let simpleR = null;
+    if(p===1){
+      const xVals = clean.map(r=>parseFloat(r[xCols[0]]));
+      const meanX = xVals.reduce((a,b)=>a+b,0)/n;
+      let num=0, denX=0, denY=0;
+      for(let i=0;i<n;i++){
+        num += (xVals[i]-meanX)*(y[i][0]-meanY);
+        denX += (xVals[i]-meanX)**2;
+        denY += (y[i][0]-meanY)**2;
+      }
+      simpleR = num/Math.sqrt(denX*denY);
+    }
+
+    return {
+      xCols, yCol, n, p, beta, seBeta, tStats, pVals, R2, adjR2, F, Fp, df,
+      residSE, residuals, preds, simpleR, cleanRows: clean
+    };
+  }
+
+  /* ---------------------------------------------------------------
+     RUN ANALYSIS (UI ORCHESTRATION)
+  --------------------------------------------------------------- */
+  function runAnalysis(){
+    const yCol = document.getElementById('responseSelect').value;
+    const xCols = Array.from(document.querySelectorAll('#explanatoryChecklist input:checked')).map(cb=>cb.value);
+    const warn = document.getElementById('varWarning');
+
+    if(!yCol || xCols.length===0 || xCols.includes(yCol)){
+      warn.style.display = 'block';
+      return;
+    }
+    warn.style.display = 'none';
+
+    let result;
+    try{
+      result = runRegression(xCols, yCol, state.rows);
+    } catch(err){
+      alert(err.message);
+      return;
+    }
+    state.result = result;
+    state.focusVar = xCols[0];
+
+    document.getElementById('resultsSection').style.display = 'block';
+    renderPlotControls();
+    renderMainPlot();
+    renderSmallMultiples();
+    renderStats();
+    renderResidualPlot();
+    document.getElementById('resultsSection').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function renderPlotControls(){
+    const wrap = document.getElementById('plotControlsWrap');
+    const sel = document.getElementById('focusSelect');
+    const r = state.result;
+    if(r.xCols.length > 1){
+      wrap.style.display = 'flex';
+      sel.innerHTML = r.xCols.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      sel.value = state.focusVar;
+      sel.onchange = ()=>{ state.focusVar = sel.value; renderMainPlot(); };
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+
+  /* ---------------------------------------------------------------
+     CANVAS PLOTTING
+  --------------------------------------------------------------- */
+  function setupCanvas(canvas, cssHeight){
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = canvas.parentElement.clientWidth - 44; // padding compensation approx
+    canvas.style.width = '100%';
+    canvas.style.height = cssHeight + 'px';
+    canvas.width = Math.max(300,cssWidth) * dpr;
+    canvas.height = cssHeight * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return ctx;
+  }
+
+  function drawScatter(canvas, points, xLabel, yLabel, opts){
+    opts = opts || {};
+    const height = opts.height || 400;
+    const ctx = setupCanvas(canvas, height);
+    const W = canvas.clientWidth || canvas.width;
+    const H = height;
+    ctx.clearRect(0,0,W,H);
+
+    const margin = {top: 18, right: 18, bottom: 46, left: 58};
+    const plotW = W - margin.left - margin.right;
+    const plotH = H - margin.top - margin.bottom;
+
+    const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
+    let xMin = Math.min(...xs), xMax = Math.max(...xs);
+    let yMin = Math.min(...ys), yMax = Math.max(...ys);
+    const xPad = (xMax-xMin || 1) * 0.08;
+    const yPad = (yMax-yMin || 1) * 0.12;
+    xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+
+    function sx(v){ return margin.left + (v-xMin)/(xMax-xMin) * plotW; }
+    function sy(v){ return margin.top + plotH - (v-yMin)/(yMax-yMin) * plotH; }
+
+    // axes
+    ctx.strokeStyle = 'rgba(38,42,31,0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, margin.top+plotH);
+    ctx.lineTo(margin.left+plotW, margin.top+plotH);
+    ctx.stroke();
+
+    // ticks
+    ctx.font = (opts.small ? '10px' : '11px') + " 'JetBrains Mono', monospace";
+    ctx.fillStyle = '#6b7061';
+    const nTicksX = 5, nTicksY = 5;
+    ctx.textAlign = 'center';
+    for(let i=0;i<=nTicksX;i++){
+      const v = xMin + (xMax-xMin)*i/nTicksX;
+      const px = sx(v);
+      ctx.strokeStyle = 'rgba(38,42,31,0.12)';
+      ctx.beginPath(); ctx.moveTo(px, margin.top); ctx.lineTo(px, margin.top+plotH); ctx.stroke();
+      ctx.fillText(formatNum(v), px, margin.top+plotH+16);
+    }
+    ctx.textAlign = 'right';
+    for(let i=0;i<=nTicksY;i++){
+      const v = yMin + (yMax-yMin)*i/nTicksY;
+      const py = sy(v);
+      ctx.strokeStyle = 'rgba(38,42,31,0.12)';
+      ctx.beginPath(); ctx.moveTo(margin.left, py); ctx.lineTo(margin.left+plotW, py); ctx.stroke();
+      ctx.fillText(formatNum(v), margin.left-8, py+3);
+    }
+
+    // axis labels
+    ctx.fillStyle = '#262a1f';
+    ctx.font = "600 12px 'Inter', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText(xLabel, margin.left + plotW/2, H - 6);
+    ctx.save();
+    ctx.translate(14, margin.top + plotH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(yLabel, 0, 0);
+    ctx.restore();
+
+    // regression line
+    if(opts.line){
+      ctx.strokeStyle = '#b7332a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const x1 = xMin, x2 = xMax;
+      ctx.moveTo(sx(x1), sy(opts.line(x1)));
+      ctx.lineTo(sx(x2), sy(opts.line(x2)));
+      ctx.stroke();
+    }
+
+    // points
+    ctx.fillStyle = 'rgba(46,76,109,0.62)';
+    ctx.strokeStyle = 'rgba(46,76,109,0.9)';
+    points.forEach(p=>{
+      ctx.beginPath();
+      ctx.arc(sx(p.x), sy(p.y), opts.r || 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    // zero line for residual plots
+    if(opts.zeroLine){
+      ctx.strokeStyle = 'rgba(38,42,31,0.4)';
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      ctx.moveTo(margin.left, sy(0));
+      ctx.lineTo(margin.left+plotW, sy(0));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function formatNum(v){
+    if(Math.abs(v) >= 1000) return v.toFixed(0);
+    if(Math.abs(v) >= 10) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+
+  function simpleFit(xCol, yCol, rows){
+    const pts = rows.filter(r=>isNumeric(r[xCol])&&isNumeric(r[yCol])&&r[xCol]!==''&&r[yCol]!=='')
+      .map(r=>({x:parseFloat(r[xCol]), y:parseFloat(r[yCol])}));
+    const n = pts.length;
+    const mx = pts.reduce((s,p)=>s+p.x,0)/n;
+    const my = pts.reduce((s,p)=>s+p.y,0)/n;
+    let num=0, den=0;
+    pts.forEach(p=>{ num += (p.x-mx)*(p.y-my); den += (p.x-mx)**2; });
+    const slope = num/den;
+    const intercept = my - slope*mx;
+    return {pts, fn: x => intercept + slope*x};
+  }
+
+  function renderMainPlot(){
+    const r = state.result;
+    const canvas = document.getElementById('mainCanvas');
+    const xCol = state.focusVar || r.xCols[0];
+
+    if(r.xCols.length === 1){
+      const pts = r.cleanRows.map(row => ({x: parseFloat(row[xCol]), y: parseFloat(row[r.yCol])}));
+      const b0 = r.beta[0], b1 = r.beta[1];
+      drawScatter(canvas, pts, xCol, r.yCol, {line: x => b0 + b1*x, height: 420});
+    } else {
+      // partial view: plot chosen X vs Y with its own marginal OLS trend (for visual reference)
+      const fit = simpleFit(xCol, r.yCol, r.cleanRows);
+      drawScatter(canvas, fit.pts, xCol, r.yCol, {line: fit.fn, height: 420});
+    }
+  }
+
+  function renderSmallMultiples(){
+    const container = document.getElementById('smallMultiples');
+    const r = state.result;
+    container.innerHTML = '';
+    if(r.xCols.length <= 1){ return; }
+    r.xCols.forEach(xCol => {
+      const item = document.createElement('div');
+      item.className = 'sm-item';
+      item.innerHTML = `<div class="sm-title">${escapeHtml(xCol)} vs ${escapeHtml(r.yCol)}</div><canvas class="plot"></canvas>`;
+      container.appendChild(item);
+      const canvas = item.querySelector('canvas');
+      const fit = simpleFit(xCol, r.yCol, r.cleanRows);
+      requestAnimationFrame(()=> drawScatter(canvas, fit.pts, xCol, r.yCol, {line: fit.fn, height: 190, r:2.6, small:true}));
+    });
+  }
+
+  function renderResidualPlot(){
+    const r = state.result;
+    const pts = r.preds.map((p,i)=>({x:p, y:r.residuals[i]}));
+    const canvas = document.getElementById('residCanvas');
+    drawScatter(canvas, pts, 'Fitted value', 'Residual', {height:300, zeroLine:true});
+  }
+
+  window.addEventListener('resize', ()=>{
+    if(!state.result) return;
+    renderMainPlot();
+    renderSmallMultiples();
+    renderResidualPlot();
+  });
+
+  /* ---------------------------------------------------------------
+     STATS RENDERING
+  --------------------------------------------------------------- */
+  function sigStars(p){
+    if(p < 0.001) return '***';
+    if(p < 0.01) return '**';
+    if(p < 0.05) return '*';
+    return '';
+  }
+
+  function renderStats(){
+    const r = state.result;
+
+    // equation
+    const eqnBox = document.getElementById('eqnBox');
+    let eqn = `${r.yCol} = ${r.beta[0].toFixed(3)}`;
+    r.xCols.forEach((c,i)=>{
+      const b = r.beta[i+1];
+      eqn += ` ${b>=0?'+':'−'} ${Math.abs(b).toFixed(3)} × ${c}`;
+    });
+    eqnBox.innerHTML = `<span class="lbl">Fitted equation</span>${eqn}`;
+
+    // coefficient table
+    const coefTable = document.getElementById('coefTable');
+    let html = '<thead><tr><th>Term</th><th>Coefficient</th><th>Std. Error</th><th>t</th><th>p-value</th></tr></thead><tbody>';
+    const terms = ['Intercept', ...r.xCols];
+    terms.forEach((t,i)=>{
+      const p = r.pVals[i];
+      html += `<tr><td>${escapeHtml(t)}</td><td>${r.beta[i].toFixed(4)}</td><td>${r.seBeta[i].toFixed(4)}</td><td>${r.tStats[i].toFixed(3)}</td><td>${p<0.0001?'<0.0001':p.toFixed(4)} <span class="sig">${sigStars(p)}</span></td></tr>`;
+    });
+    html += '</tbody>';
+    coefTable.innerHTML = html;
+    document.getElementById('sigNote').textContent = 'Significance: * p<0.05  ** p<0.01  *** p<0.001';
+
+    // stamp
+    document.getElementById('stampValue').textContent = r.R2.toFixed(3);
+    document.getElementById('stampSub').textContent = r.p===1 ? `r = ${r.simpleR.toFixed(3)}` : `${r.p} predictors`;
+
+    const mini = document.getElementById('miniStats');
+    const rows = [
+      ['n (observations)', r.n],
+      ['Adjusted R\u00b2', r.adjR2.toFixed(4)],
+      ['Residual std. error', r.residSE.toFixed(4)],
+      ['Degrees of freedom', r.df],
+      ['F-statistic', r.F.toFixed(3)],
+      ['F p-value', r.Fp<0.0001?'<0.0001':r.Fp.toFixed(4)],
+    ];
+    mini.innerHTML = rows.map(([k,v])=>`<div class="k">${k}</div><div class="v">${v}</div>`).join('');
+  }
+
+})();
+</script>
+</body>
+</html>
